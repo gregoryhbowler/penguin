@@ -184,3 +184,64 @@ html, body {
   #taskCard { width: 220px; font-size: 13px; }
   #pipCard { width: 168px; }
 }
+
+/* ---------- controls help ---------- */
+#help {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  z-index: 40; width: min(420px, 90vw);
+  background: var(--parchment); border: 3px solid var(--wood);
+  border-radius: 18px; padding: 22px 24px; color: var(--ink);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .45);
+}
+#help.gone { display: none; }
+#help h2 { margin: 0 0 14px; font-size: 21px; }
+#help dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; margin: 0; font-size: 14.5px; }
+#help dt {
+  justify-self: start; background: var(--ink); color: var(--parchment);
+  border-radius: 6px; padding: 2px 9px; font-size: 12.5px; font-weight: 700;
+  white-space: nowrap;
+}
+#help dd { margin: 0; align-self: center; }
+#help .tip {
+  margin: 16px 0 0; padding-top: 13px; font-size: 13.5px; font-style: italic;
+  color: var(--ink-soft); border-top: 1px solid rgba(138, 103, 72, .35);
+}
+#helpClose {
+  position: absolute; top: 12px; right: 12px; width: 30px; height: 30px;
+  border: 0; border-radius: 8px; background: var(--parchment-dark);
+  color: var(--ink); font-size: 14px; cursor: pointer;
+}
+#helpOpen {
+  position: fixed; right: 14px; bottom: 14px; z-index: 16;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(243, 233, 210, .9); border: 2px solid var(--wood);
+  color: var(--ink); font-size: 18px; font-weight: 700; cursor: pointer;
+}
+
+/* ---------- touch: Roblox-style layout ---------- */
+#stick {
+  position: absolute; width: 140px; height: 140px; left: 0; top: 0;
+  border-radius: 50%; background: rgba(243, 233, 210, .14);
+  border: 2px solid rgba(243, 233, 210, .34);
+  opacity: 0; transition: opacity .16s; pointer-events: none;
+}
+#stick i {
+  position: absolute; left: 50%; top: 50%; width: 62px; height: 62px;
+  margin: -31px 0 0 -31px; border-radius: 50%;
+  background: rgba(243, 233, 210, .62);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .25);
+}
+#touch button {
+  position: absolute; border-radius: 50%;
+  background: rgba(243, 233, 210, .8); border: 3px solid var(--wood);
+  color: var(--ink); font-weight: 700; pointer-events: auto;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .3);
+}
+#touch button:active { background: rgba(217, 118, 61, .85); color: #fff; }
+#btnJump  { right: 5vw;  bottom: 12vh; width: 88px; height: 88px; font-size: 30px; }
+#btnAct   { right: 25vw; bottom: 9vh;  width: 72px; height: 72px; font-size: 24px; }
+#btnSlide { right: 6vw;  bottom: 30vh; width: 62px; height: 62px; font-size: 24px; }
+
+@media (pointer: coarse) {
+  #helpOpen { bottom: auto; top: 120px; right: 14px; }
+}

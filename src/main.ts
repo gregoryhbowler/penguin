@@ -1,37 +1,73 @@
 import * as THREE from 'three';
 import { loadWorld, indexByTag, makeCollider, ColliderGrid } from './engine/world';
 import { CharacterController } from './engine/controller';
-import { createRenderer, createScene, createGround, buildWorldMeshes, groundHeight } from './art/scene';
+import {
+  createRenderer, createScene, createGround, buildWorldMeshes, groundHeight,
+} from './art/scene';
+import { createSky } from './art/sky';
+import { buildFoliage, GrassField, tickWind } from './art/foliage';
+import { createWater } from './art/water';
+import { createPostFX, detectQuality } from './art/postfx';
 import { Pip } from './game/pip';
 import { Interactables } from './game/interact';
 import { UI } from './game/ui';
 import { Input } from './engine/input';
 
-const REGION = 'World/Campsite';
-
 async function boot() {
   const canvas = document.getElementById('view') as HTMLCanvasElement;
-  const renderer = createRenderer(canvas);
-  const { scene, sun } = createScene();
-  const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.3, 900);
+  const quality = detectQuality();
+  const renderer = createRenderer(canvas, quality.pixelRatio);
+  const { scene, sun, sunDir } = createScene(quality.shadowSize);
+  const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.3, 1400);
 
   const ui = new UI();
   const world = await loadWorld(`${import.meta.env.BASE_URL}data/world.json`);
+  const parts = world.parts; // the whole map now, not one region
 
-  // Slice: one region at a time while systems are ported over.
-  const parts = world.parts.filter((p) => p.path.startsWith(REGION));
+  // ---------------- sky + environment ----------------
+  const sky = createSky(renderer, sunDir);
+  scene.add(sky.mesh);
+  scene.environment = sky.environment;
+  scene.environmentIntensity = 0.55;
 
+  // ---------------- geometry ----------------
   scene.add(createGround());
-  scene.add(buildWorldMeshes(parts));
+  const foliage = buildFoliage(parts);
+  scene.add(foliage.group);
+  scene.add(buildWorldMeshes(parts, foliage.consumed));
 
-  // ---- collision ----
+  // The river runs roughly north-south through the waterfront; ponds are small
+  // enough that one generous sheet at the waterline covers everything.
+  const water = createWater(new THREE.Vector2(470, 60), new THREE.Vector2(260, 900), 1.2);
+  scene.add(water.mesh);
+
+  // ---------------- collision ----------------
   const grid = new ColliderGrid();
   for (const p of parts) {
     if (p.canCollide === false) continue;
-    if ((p.transparency ?? 0) >= 0.98) continue; // zone volumes & markers
+    if ((p.transparency ?? 0) >= 0.98) continue;
     if (p.class === 'SpawnLocation') continue;
+    if (foliage.consumed.has(p)) continue; // walk through leaves and ferns
     grid.add(makeCollider(p));
   }
+
+  // Turf, but never growing up through paths, decks or floors.
+  const grassProbe: any[] = [];
+  const grassLocal = new THREE.Vector3();
+  const noGrassHere = (x: number, z: number, y: number) => {
+    const list = grid.query(new THREE.Vector3(x, y, z), 2, grassProbe);
+    for (const c of list) {
+      if (c.center.y + c.half.y < y - 0.1) continue;  // entirely below the turf line
+      if (c.center.y - c.half.y > y + 2.5) continue;  // high above it
+      grassLocal.set(x - c.center.x, 0, z - c.center.z).applyMatrix3(c.inv);
+      if (Math.abs(grassLocal.x) <= c.half.x + 0.3 && Math.abs(grassLocal.z) <= c.half.z + 0.3) {
+        return true;
+      }
+    }
+    return false;
+  };
+  const grass = new GrassField(quality.grass, 19, groundHeight, noGrassHere);
+  scene.add(grass.mesh);
 
   const controller = new CharacterController(grid, {
     radius: 1.0,
@@ -40,14 +76,13 @@ async function boot() {
     slideSpeed: 30,
     jumpSpeed: 42,
     gravity: 100,
-    stepHeight: 1.4, // generous on purpose: the Roblox rig's 0.3 broke everything
+    stepHeight: 1.4,
     groundY: groundHeight,
   });
 
-  // Spawn on the region's SpawnLocation if it has one.
   const spawn = parts.find((p) => p.class === 'SpawnLocation')
     ?? parts.find((p) => p.tags?.includes('Checkpoint'));
-  const sp = spawn ? spawn.pos : [-630, 6, -460];
+  const sp = spawn ? spawn.pos : [-660, 6, -430];
   controller.pos.set(sp[0], sp[1] + 3, sp[2]);
 
   const pip = new Pip();
@@ -55,54 +90,60 @@ async function boot() {
 
   const byTag = indexByTag(parts);
   const interact = new Interactables(scene, byTag, ui);
+  const zones = byTag.get('Zone') ?? [];
 
   const input = new Input(canvas);
-  ui.showRegion('Abandoned Campsite');
+  ui.setScheme(input.scheme);
 
-  // dev inspection hook
-  (window as any).__game = { controller, camera, pip, parts, spawn };
+  // ---------------- post ----------------
+  const post = createPostFX(renderer, scene, camera, quality);
 
-  // ---- camera rig ----
-  let camYaw = 0;
-  let camPitch = 0.32;
-  let camDist = 22;
-  const camTarget = new THREE.Vector3();
+  // ---------------- camera ----------------
+  let camYaw = Math.PI;
+  let camPitch = 0.34;
+  let camDist = 24;
+  const camTarget = new THREE.Vector3(controller.pos.x, controller.pos.y + 3.2, controller.pos.z);
+  camera.position.set(camTarget.x, camTarget.y + 10, camTarget.z + 24);
 
   function resize() {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
+    post.setSize(innerWidth, innerHeight);
   }
   addEventListener('resize', resize);
   resize();
-
   ui.ready();
 
   let last = performance.now();
+  let elapsed = 0;
+  let currentZone = '';
 
   function tick(dt: number, override?: { dir?: THREE.Vector2; jump?: boolean; slide?: boolean }) {
+    elapsed += dt;
+    input.update();
 
-    // ---- camera orbit from mouse/touch look ----
-    camYaw -= input.look.x * 0.0032;
-    camPitch = THREE.MathUtils.clamp(camPitch + input.look.y * 0.0026, -0.25, 1.15);
-    input.look.set(0, 0);
+    // ---- camera orbit ----
+    const look = input.consumeLook();
+    camYaw -= look.x * 0.0045;
+    camPitch = THREE.MathUtils.clamp(camPitch + look.y * 0.0035, -0.15, 1.2);
+    camDist = THREE.MathUtils.clamp(camDist + input.consumeZoom(), 9, 46);
 
-    // Movement is relative to where the camera is pointing.
-    const move = input.move.clone();
-    if (move.lengthSq() > 1) move.normalize();
+    // ---- movement, relative to the camera ----
+    const mv = input.move.clone();
+    if (mv.lengthSq() > 1) mv.normalize();
     const sin = Math.sin(camYaw);
     const cos = Math.cos(camYaw);
     const dir = override?.dir ?? new THREE.Vector2(
-      move.x * cos - move.y * sin,
-      move.x * sin + move.y * cos,
+      mv.x * cos - mv.y * sin,
+      mv.x * sin + mv.y * cos,
     );
 
     controller.update(dt, {
       dir,
-      jump: override?.jump ?? input.jump,
+      jump: override?.jump ?? input.consumeJump(),
       slide: override?.slide ?? input.slide,
     });
-    input.jump = false;
 
     const speed01 = Math.min(1, Math.hypot(controller.vel.x, controller.vel.z) / 14);
     pip.root.position.copy(controller.pos);
@@ -111,27 +152,46 @@ async function boot() {
     // ---- follow camera ----
     camTarget.lerp(
       new THREE.Vector3(controller.pos.x, controller.pos.y + 3.2, controller.pos.z),
-      Math.min(1, dt * 9),
+      Math.min(1, dt * 10),
     );
     const cp = new THREE.Vector3(
       camTarget.x + Math.sin(camYaw) * Math.cos(camPitch) * camDist,
       camTarget.y + Math.sin(camPitch) * camDist,
       camTarget.z + Math.cos(camYaw) * Math.cos(camPitch) * camDist,
     );
-    // Keep the camera above ground so it never dives under the world.
-    const floor = groundHeight(cp.x, cp.z) + 2;
+    const floor = groundHeight(cp.x, cp.z) + 2.5;
     if (cp.y < floor) cp.y = floor;
-    camera.position.lerp(cp, Math.min(1, dt * 11));
+    camera.position.lerp(cp, Math.min(1, dt * 12));
     camera.lookAt(camTarget);
 
-    // Shadow frustum follows Pip so the map size doesn't blur shadows.
-    sun.position.set(controller.pos.x - 90, controller.pos.y + 120, controller.pos.z + 60);
+    // ---- world updates ----
+    sun.position.copy(controller.pos).addScaledVector(sunDir, 170);
     sun.target.position.copy(controller.pos);
+    sky.mesh.position.copy(camera.position);
+    sky.update(elapsed);
+    water.update(elapsed);
+    grass.update(controller.pos);
+    for (const m of foliage.materials) tickWind(m, elapsed);
+    tickWind(grass.material, elapsed);
+
+    // ---- region banner, straight off the Zone tags ----
+    for (const z of zones) {
+      const half = [z.size[0] / 2, z.size[1] / 2, z.size[2] / 2];
+      if (Math.abs(controller.pos.x - z.pos[0]) <= half[0] &&
+          Math.abs(controller.pos.y - z.pos[1]) <= half[1] &&
+          Math.abs(controller.pos.z - z.pos[2]) <= half[2]) {
+        const name = String(z.attrs?.DisplayName ?? z.attrs?.ZoneId ?? '');
+        if (name && name !== currentZone) {
+          currentZone = name;
+          ui.showRegion(name);
+        }
+        break;
+      }
+    }
 
     interact.update(dt, controller.pos, input.consumeAction());
     ui.tick(dt);
-
-    renderer.render(scene, camera);
+    post.composer.render();
   }
 
   function frame() {
@@ -143,8 +203,7 @@ async function boot() {
   }
   frame();
 
-  (window as any).__game.tick = tick;
-  (window as any).__game.THREE = THREE;
+  (window as any).__game = { controller, camera, pip, parts, tick, THREE, quality };
 }
 
 boot().catch((err) => {

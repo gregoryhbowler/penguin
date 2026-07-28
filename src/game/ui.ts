@@ -23,7 +23,13 @@ export class UI {
     toasts: document.getElementById('toasts')!,
     prompt: document.getElementById('promptHint')!,
     dialogue: document.getElementById('dialogue')!,
+    help: document.getElementById('help')!,
+    helpKeys: document.getElementById('helpKeys')!,
+    helpOpen: document.getElementById('helpOpen')!,
+    helpClose: document.getElementById('helpClose')!,
   };
+
+  private scheme: 'desktop' | 'touch' = 'desktop';
 
   constructor() {
     // The task card blocking dialogue was a real complaint in the Roblox build;
@@ -34,6 +40,19 @@ export class UI {
         this.el.taskCard.classList.contains('collapsed') ? '+' : '–';
     });
     this.el.dialogue.querySelector('.next')!.addEventListener('click', () => this.advance());
+
+    const closeHelp = () => {
+      this.el.help.classList.add('gone');
+      this.el.helpOpen.hidden = false;
+    };
+    this.el.helpClose.addEventListener('click', closeHelp);
+    this.el.helpOpen.addEventListener('click', () => {
+      this.el.help.classList.remove('gone');
+      this.el.helpOpen.hidden = true;
+    });
+    addEventListener('keydown', (e) => {
+      if (e.code === 'Escape' && !this.el.help.classList.contains('gone')) closeHelp();
+    });
     addEventListener('keydown', (e) => {
       if (this.el.dialogue.hidden) return;
       if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyE') {
@@ -41,6 +60,31 @@ export class UI {
         this.advance();
       }
     });
+  }
+
+  /** Fill the help card with the right scheme's controls. */
+  setScheme(scheme: 'desktop' | 'touch') {
+    this.scheme = scheme;
+    const rows: [string, string][] = scheme === 'touch'
+      ? [
+          ['Left thumb', 'Touch anywhere on the left to steer — the stick appears under your thumb'],
+          ['Right drag', 'Swing the camera around Pip'],
+          ['Pinch', 'Zoom in and out'],
+          ['\u2934', 'Jump'],
+          ['E', 'Interact — grab things, talk, put out fires'],
+          ['\u2261', 'Belly-slide'],
+        ]
+      : [
+          ['W A S D', 'Waddle around'],
+          ['Drag mouse', 'Swing the camera'],
+          ['Scroll', 'Zoom in and out'],
+          ['Space', 'Jump'],
+          ['Shift', 'Belly-slide'],
+          ['E', 'Interact — grab things, talk, put out fires'],
+        ];
+    this.el.helpKeys.innerHTML = rows
+      .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`)
+      .join('');
   }
 
   ready() {
@@ -73,6 +117,7 @@ export class UI {
 
   showPrompt(text: string) {
     this.el.prompt.hidden = false;
+    this.el.prompt.querySelector('b')!.textContent = this.scheme === 'touch' ? 'E' : 'E';
     this.el.prompt.querySelector('span')!.textContent = text;
   }
 

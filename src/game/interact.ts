@@ -18,6 +18,18 @@ interface Interactable {
   done?: boolean;
 }
 
+/** Display names for every character, lifted from the Roblox NPCService. */
+const NPC_NAMES: Record<string, string> = {
+  AshCat: 'Ash the Cat', RangerMaple: 'Ranger Maple', Mossmitt: 'Mossmitt',
+  WardenBram: 'Warden Bram', Picnicker: 'Theo', Marla: 'Frantic Squirrel',
+  Nora: 'Nora', Cindercoo: 'Cindercoo', OldSpan: 'Old Span', Sam: 'Sam',
+  Watchkeeper: 'The Watchkeeper', Sudsy: 'Sudsy', Glint: 'Glint',
+  GardenerFern: 'Gardener Fern', BakerLena: 'Baker Lena', SailorMoss: 'Old Moss',
+  JunoKid: 'Juno', BeeKid: 'Bee', FernElk: 'Sirelen', MistHeron: 'The Mist Heron',
+  Firefighter1: 'Captain Rosa', Firefighter2: 'Firefighter Jude',
+  Firefighter3: 'Firefighter Kit',
+};
+
 const NPC_LINES: Record<string, { name: string; lines: string[] }> = {
   AshCat: {
     name: 'Ash the Cat',
@@ -68,7 +80,7 @@ export class Interactables {
         part: p,
         pos: new THREE.Vector3(...p.pos),
         kind: 'NPC:' + id,
-        label: NPC_LINES[id]?.name ?? id,
+        label: NPC_LINES[id]?.name ?? NPC_NAMES[id] ?? id,
         verb: id === 'AshCat' ? 'Rescue' : 'Talk',
         range: 10,
         object3D: this.spawnNpcVisual(p, id),
@@ -282,7 +294,12 @@ export class Interactables {
     if (best.kind.startsWith('NPC:')) {
       const id = best.kind.slice(4);
       const def = NPC_LINES[id];
-      if (def) this.ui.dialogue(def.name, def.lines);
+      if (def) {
+        this.ui.dialogue(def.name, def.lines);
+      } else {
+        // Characters whose dialogue trees haven't been ported yet still greet you.
+        this.ui.dialogue(NPC_NAMES[id] ?? id, ['They nod warmly as you waddle past.']);
+      }
       if (id === 'AshCat') {
         best.done = true;
         this.ui.addSparks(20);

@@ -43,9 +43,18 @@
 
   <div id="touch" hidden>
     <div id="stick"><i></i></div>
-    <button id="btnJump">▲</button>
-    <button id="btnAct">E</button>
+    <button id="btnJump" aria-label="Jump">⤒</button>
+    <button id="btnAct" aria-label="Interact">E</button>
+    <button id="btnSlide" aria-label="Slide">≡</button>
   </div>
+
+  <div id="help">
+    <button id="helpClose" aria-label="Close">✕</button>
+    <h2>How to play</h2>
+    <dl id="helpKeys"></dl>
+    <p class="tip">Find the old bucket, fill it at the pond, and put out the fire.</p>
+  </div>
+  <button id="helpOpen" title="Controls" hidden>?</button>
 
   <script type="module" src="/src/main.ts"></script>
 </body>
