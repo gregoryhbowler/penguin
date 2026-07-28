@@ -58,13 +58,20 @@ only the runtime is new.
 
 ## Status
 
-The Campsite is playable end to end: find the bucket, fill it, douse the
-tutorial fire, rescue Ash, meet Ranger Maple. Remaining regions are extracted
-and ready to switch on as their systems are ported.
+All seven regions load and are walkable. The Campsite is playable end to end:
+find the bucket, fill it, douse the tutorial fire, rescue Ash, meet Ranger
+Maple. Other regions are built and traversable, but their NPCs are still stubs
+until their quest chains are ported from `data/scripts/`.
+
+Not yet done: water (needs a carved river channel), audio, saves, and a real
+test on iPad hardware.
+
+`HANDOFF.md` is the current state of play and the gotchas worth knowing before
+touching collision, terrain or the art pipeline.
 
 The original Roblox build's documentation is kept in `ROBLOX_README.md`,
-`HANDOFF.md` and `QA_REPORT.md` — they remain the reference for quest chains,
-dialogue and world design.
+`ROBLOX_HANDOFF.md` and `QA_REPORT.md` — they remain the reference for quest
+chains, dialogue and world design.
 
 ## Art pipeline
 
