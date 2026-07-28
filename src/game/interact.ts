@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { PartData } from '../engine/world';
 import type { UI } from './ui';
+import { CAST, castFigure } from './cast';
 
 /**
  * Ports the Roblox InteractionService idea: the world is data, and tagged
@@ -14,21 +15,29 @@ interface Interactable {
   label: string;
   verb: string;
   range: number;
+  /**
+   * Half-extents, when the trigger is a volume rather than a point. The pond's
+   * `WaterSource` is a 60x60 box and the river's are 30-stud strips: measuring
+   * from their centres meant you had to be standing in the middle of the water
+   * to fill a bucket, which on a map with no visible water at all was the
+   * difference between a game and a dead end.
+   */
+  half?: THREE.Vector3;
   object3D?: THREE.Object3D;
   done?: boolean;
 }
 
-/** Display names for every character, lifted from the Roblox NPCService. */
-const NPC_NAMES: Record<string, string> = {
-  AshCat: 'Ash the Cat', RangerMaple: 'Ranger Maple', Mossmitt: 'Mossmitt',
-  WardenBram: 'Warden Bram', Picnicker: 'Theo', Marla: 'Frantic Squirrel',
-  Nora: 'Nora', Cindercoo: 'Cindercoo', OldSpan: 'Old Span', Sam: 'Sam',
-  Watchkeeper: 'The Watchkeeper', Sudsy: 'Sudsy', Glint: 'Glint',
-  GardenerFern: 'Gardener Fern', BakerLena: 'Baker Lena', SailorMoss: 'Old Moss',
-  JunoKid: 'Juno', BeeKid: 'Bee', FernElk: 'Sirelen', MistHeron: 'The Mist Heron',
-  Firefighter1: 'Captain Rosa', Firefighter2: 'Firefighter Jude',
-  Firefighter3: 'Firefighter Kit',
-};
+/** Distance from a point to an interactable — to its box if it has one. */
+const _rel = new THREE.Vector3();
+function rangeTo(it: Interactable, p: THREE.Vector3): number {
+  if (!it.half) return it.pos.distanceTo(p);
+  _rel.set(
+    Math.max(0, Math.abs(p.x - it.pos.x) - it.half.x),
+    Math.max(0, Math.abs(p.y - it.pos.y) - it.half.y),
+    Math.max(0, Math.abs(p.z - it.pos.z) - it.half.z),
+  );
+  return _rel.length();
+}
 
 const NPC_LINES: Record<string, { name: string; lines: string[] }> = {
   AshCat: {
@@ -52,6 +61,8 @@ const NPC_LINES: Record<string, { name: string; lines: string[] }> = {
 export class Interactables {
   private items: Interactable[] = [];
   private fires: { part: PartData; group: THREE.Group; health: number; out: boolean }[] = [];
+  /** Standing characters, breathing gently in place. */
+  private figures: { object: THREE.Group; phase: number; y: number; scale: number }[] = [];
   private hasBucket = false;
   private bucketFull = false;
   private t = 0;
@@ -60,7 +71,26 @@ export class Interactables {
     private scene: THREE.Scene,
     byTag: Map<string, PartData[]>,
     private ui: UI,
+    private hooks: {
+      bridgeLever?: () => void;
+      /** Solid surface under a point — see main.ts. */
+      place?: (x: number, z: number, near: number, wader?: boolean) => number;
+    } = {},
   ) {
+    for (const p of byTag.get('BridgeLever') ?? []) {
+      this.items.push({
+        part: p,
+        pos: new THREE.Vector3(...p.pos),
+        kind: 'BridgeLever',
+        label: 'the bridge winch',
+        verb: 'Turn',
+        // The winch stands off the side of the approach roadway; at a tighter
+        // range you can walk the whole bridge without ever seeing the prompt
+        // for the one thing that opens it.
+        range: 12,
+      });
+    }
+
     for (const p of byTag.get('Pickup') ?? []) {
       const kind = String(p.attrs?.Kind ?? 'QuestItem');
       this.items.push({
@@ -76,25 +106,45 @@ export class Interactables {
 
     for (const p of byTag.get('NPCSpot') ?? []) {
       const id = String(p.attrs?.NpcId ?? '');
+      const { object, entry } = castFigure(id);
+      // The tagged spot y is where the marker part sat, not where a pair of
+      // feet belongs. Snap to whatever is actually solid there — which is how
+      // Cindercoo ends up on her rooftop and Sam stays down in the tunnels.
+      const wader = entry.kind === 'critter' && entry.wader;
+      const y = this.place(p.pos[0], p.pos[2], p.pos[1], wader);
+      object.position.set(p.pos[0], y, p.pos[2]);
+      object.rotation.y = THREE.MathUtils.degToRad(Number(p.attrs?.FaceYaw ?? 0));
+      this.scene.add(object);
+      this.figures.push({ object, phase: this.figures.length * 1.7, y, scale: object.scale.y });
+
       this.items.push({
         part: p,
-        pos: new THREE.Vector3(...p.pos),
+        pos: new THREE.Vector3(p.pos[0], y, p.pos[2]),
         kind: 'NPC:' + id,
-        label: NPC_LINES[id]?.name ?? NPC_NAMES[id] ?? id,
-        verb: id === 'AshCat' ? 'Rescue' : 'Talk',
+        label: entry.name,
+        verb: entry.verb ?? 'Talk',
         range: 10,
-        object3D: this.spawnNpcVisual(p, id),
+        object3D: object,
       });
     }
 
     for (const p of byTag.get('WaterSource') ?? []) {
+      const type = String(p.attrs?.SourceType ?? 'Pond');
+      const where = type === 'Hydrant' ? 'the hydrant'
+        : type === 'Fountain' ? 'the fountain'
+        : p.name.startsWith('River') ? 'the river'
+        : p.name.startsWith('Pool') ? 'the pool'
+        : 'the pond';
       this.items.push({
         part: p,
         pos: new THREE.Vector3(...p.pos),
         kind: 'Water',
-        label: 'Water',
-        verb: 'Fill Bucket',
-        range: 12,
+        label: where,
+        verb: 'Fill Bucket at',
+        // Reach a little past the trigger volume so the bank counts, not just
+        // the water.
+        range: 7,
+        half: new THREE.Vector3(p.size[0] / 2, Math.max(p.size[1] / 2, 4), p.size[2] / 2),
       });
     }
 
@@ -124,55 +174,9 @@ export class Interactables {
     return g;
   }
 
-  private spawnNpcVisual(p: PartData, id: string): THREE.Object3D {
-    const g = new THREE.Group();
-    if (id === 'AshCat') {
-      const grey = new THREE.MeshStandardMaterial({ color: '#7e7c84', roughness: 0.85 });
-      const body = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 12), grey);
-      body.scale.set(0.85, 0.7, 1.2);
-      body.position.y = 0.85;
-      body.castShadow = true;
-      g.add(body);
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.55, 14, 11), grey);
-      head.position.set(0, 1.6, -0.85);
-      head.castShadow = true;
-      g.add(head);
-      for (const s of [-1, 1]) {
-        const ear = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.4, 6), grey);
-        ear.position.set(s * 0.25, 2.05, -0.85);
-        g.add(ear);
-        const eye = new THREE.Mesh(
-          new THREE.SphereGeometry(0.09, 8, 6),
-          new THREE.MeshStandardMaterial({ color: '#8ec87a', roughness: 0.3 }),
-        );
-        eye.position.set(s * 0.2, 1.68, -1.3);
-        g.add(eye);
-      }
-    } else {
-      // Simple stand-in figure until the full NPC kit is ported.
-      const coat = new THREE.MeshStandardMaterial({ color: '#5c7350', roughness: 0.9 });
-      const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.75, 1.5, 6, 12), coat);
-      torso.position.y = 2.6;
-      torso.castShadow = true;
-      g.add(torso);
-      const head = new THREE.Mesh(
-        new THREE.SphereGeometry(0.6, 16, 12),
-        new THREE.MeshStandardMaterial({ color: '#e0b291', roughness: 0.8 }),
-      );
-      head.position.y = 4.1;
-      head.castShadow = true;
-      g.add(head);
-      const hat = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.85, 0.85, 0.18, 14),
-        new THREE.MeshStandardMaterial({ color: '#6b5136', roughness: 0.9 }),
-      );
-      hat.position.y = 4.6;
-      g.add(hat);
-    }
-    g.position.set(p.pos[0], p.pos[1], p.pos[2]);
-    g.rotation.y = THREE.MathUtils.degToRad(Number(p.attrs?.FaceYaw ?? 0));
-    this.scene.add(g);
-    return g;
+  /** Solid ground under a character, falling back to the tagged marker height. */
+  private place(x: number, z: number, near: number, wader = false): number {
+    return this.hooks.place?.(x, z, near, wader) ?? near;
   }
 
   /** Fire is the one warm thing in the world — so it's the only thing that glows. */
@@ -217,6 +221,16 @@ export class Interactables {
       }
     }
 
+    // Standing characters breathe and shift their weight. It is a tiny amount
+    // of motion — under a tenth of a stud — but a scene of people holding
+    // perfectly still reads as a scene of statues.
+    for (const f of this.figures) {
+      const t = this.t + f.phase;
+      f.object.position.y = f.y + Math.sin(t * 1.4) * 0.045;
+      f.object.rotation.z = Math.sin(t * 0.9) * 0.012;
+      f.object.scale.y = f.scale * (1 + Math.sin(t * 1.4) * 0.012);
+    }
+
     // bob pickups
     for (const it of this.items) {
       if (it.done || !it.object3D || !it.kind.startsWith('Pickup')) continue;
@@ -229,7 +243,7 @@ export class Interactables {
     let bestD = Infinity;
     for (const it of this.items) {
       if (it.done) continue;
-      const d = it.pos.distanceTo(playerPos);
+      const d = rangeTo(it, playerPos);
       if (d < it.range && d < bestD) { best = it; bestD = d; }
     }
 
@@ -262,6 +276,11 @@ export class Interactables {
       return;
     }
     if (!best) return;
+
+    if (best.kind === 'BridgeLever') {
+      this.hooks.bridgeLever?.();
+      return;
+    }
 
     if (best.kind === 'Water') {
       if (!this.hasBucket) { this.ui.toast('You need a bucket to carry water.', 'hint'); return; }
@@ -298,7 +317,7 @@ export class Interactables {
         this.ui.dialogue(def.name, def.lines);
       } else {
         // Characters whose dialogue trees haven't been ported yet still greet you.
-        this.ui.dialogue(NPC_NAMES[id] ?? id, ['They nod warmly as you waddle past.']);
+        this.ui.dialogue(CAST[id]?.name ?? id, ['They nod warmly as you waddle past.']);
       }
       if (id === 'AshCat') {
         best.done = true;

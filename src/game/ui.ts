@@ -27,7 +27,10 @@ export class UI {
     helpKeys: document.getElementById('helpKeys')!,
     helpOpen: document.getElementById('helpOpen')!,
     helpClose: document.getElementById('helpClose')!,
+    underwater: document.getElementById('underwater')!,
   };
+
+  private underwater = false;
 
   private scheme: 'desktop' | 'touch' = 'desktop';
 
@@ -70,16 +73,16 @@ export class UI {
           ['Left thumb', 'Touch anywhere on the left to steer — the stick appears under your thumb'],
           ['Right drag', 'Swing the camera around Pip'],
           ['Pinch', 'Zoom in and out'],
-          ['\u2934', 'Jump'],
+          ['\u2934', 'Jump, or swim upward when you are in the water'],
           ['E', 'Interact — grab things, talk, put out fires'],
-          ['\u2261', 'Belly-slide'],
+          ['\u2261', 'Belly-slide, or hold it in the water to dive under'],
         ]
       : [
-          ['W A S D', 'Waddle around'],
+          ['W A S D', 'Waddle around, and swim once you are in the water'],
           ['Drag mouse', 'Swing the camera'],
           ['Scroll', 'Zoom in and out'],
-          ['Space', 'Jump'],
-          ['Shift', 'Belly-slide'],
+          ['Space', 'Jump, or swim upward when you are in the water'],
+          ['Shift', 'Belly-slide, or hold it in the water to dive under'],
           ['E', 'Interact — grab things, talk, put out fires'],
         ];
     this.el.helpKeys.innerHTML = rows
@@ -99,6 +102,12 @@ export class UI {
     this.el.taskTitle.textContent = title;
     this.el.taskBody.textContent = body;
     this.el.taskHint.textContent = hint ? `Hint: ${hint}` : '';
+  }
+
+  setUnderwater(on: boolean) {
+    if (on === this.underwater) return;
+    this.underwater = on;
+    this.el.underwater.classList.toggle('on', on);
   }
 
   showRegion(name: string) {

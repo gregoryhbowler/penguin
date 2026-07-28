@@ -256,10 +256,15 @@ export function buildFoliage(parts: PartData[]): FoliageResult {
  */
 export class GrassField {
   mesh: THREE.InstancedMesh;
+  /** Wildflowers, scattered through the same tiles as the turf. The meadow
+   *  panels on the world sheet are never plain green — the flecks of colour
+   *  are most of what makes a big field read as alive rather than as a lawn. */
+  flowers: THREE.InstancedMesh;
   material: THREE.MeshStandardMaterial;
   private tile: number;
   private tilesAcross: number;
   private perTile: number;
+  private flowerCount: number;
   private lastTile = { x: 1e9, z: 1e9 };
 
   constructor(
@@ -325,6 +330,34 @@ export class GrassField {
     this.mesh.castShadow = false;
     this.mesh.receiveShadow = true;
     this.mesh.frustumCulled = false;
+
+    // A flower: a short stem and a ring of petals around a centre.
+    const petals: THREE.BufferGeometry[] = [];
+    const stem = new THREE.BoxGeometry(0.04, 0.5, 0.04);
+    stem.translate(0, 0.25, 0);
+    petals.push(stem);
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      const petal = new THREE.SphereGeometry(0.1, 6, 4);
+      petal.scale(1, 0.45, 1.5);
+      petal.translate(Math.sin(a) * 0.11, 0.52, Math.cos(a) * 0.11);
+      petals.push(petal);
+    }
+    const core = new THREE.SphereGeometry(0.06, 6, 4);
+    core.translate(0, 0.55, 0);
+    petals.push(core);
+    this.flowerCount = Math.max(1, Math.floor(count * 0.085));
+    this.flowers = new THREE.InstancedMesh(
+      withWhiteColors(mergeGeometries(petals)),
+      makeWindMaterial(
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 }),
+        { strength: 0.1, speed: 1.7, fade: [radius * 0.55, radius * 0.95] },
+      ),
+      this.flowerCount,
+    );
+    this.flowers.castShadow = false;
+    this.flowers.receiveShadow = true;
+    this.flowers.frustumCulled = false;
   }
 
   update(center: THREE.Vector3) {
@@ -349,6 +382,16 @@ export class GrassField {
       const s = Math.sin(a * 127.1 + b * 311.7 + salt * 74.7) * 43758.5453;
       return s - Math.floor(s);
     };
+
+    // A restrained wildflower palette. Warm hues are allowed here because a
+    // flower is a fleck a few pixels wide, not a light source — nothing in the
+    // set is bright enough to compete with a fire.
+    // Nothing in this set may reach the bloom threshold. A near-white petal
+    // under full sun does, and a meadow of softly glowing flowers steals the
+    // one effect that is supposed to belong to fire.
+    const BLOOMS = ['#d8c05e', '#c6d0cc', '#c9819a', '#b391c6', '#d69a58'];
+    const bloom = new THREE.Color();
+    let f = 0;
 
     let i = 0;
     for (let ox = -half; ox <= half; ox++) {
@@ -378,6 +421,20 @@ export class GrassField {
             (hash(cellX, cellZ, k + 7) - 0.5) * 0.09,
           );
           this.mesh.setColorAt(i, color);
+
+          // Every so often, put a flower in the same tuft.
+          const roll = hash(cellX, cellZ, k + 61);
+          if (roll < 0.085 && f < this.flowerCount) {
+            pos.set(x, y, z);
+            e.set(0, roll * 40, 0);
+            q.setFromEuler(e);
+            scale.setScalar(0.9 + hash(cellX, cellZ, k + 71) * 0.6);
+            m.compose(pos, q, scale);
+            this.flowers.setMatrixAt(f, m);
+            bloom.set(BLOOMS[Math.floor(hash(cellX, cellZ, k + 83) * BLOOMS.length) % BLOOMS.length]);
+            this.flowers.setColorAt(f, bloom);
+            f++;
+          }
         }
       }
     }
@@ -386,7 +443,13 @@ export class GrassField {
       m.makeScale(0, 0, 0);
       this.mesh.setMatrixAt(i, m);
     }
+    for (; f < this.flowerCount; f++) {
+      m.makeScale(0, 0, 0);
+      this.flowers.setMatrixAt(f, m);
+    }
     this.mesh.instanceMatrix.needsUpdate = true;
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+    this.flowers.instanceMatrix.needsUpdate = true;
+    if (this.flowers.instanceColor) this.flowers.instanceColor.needsUpdate = true;
   }
 }

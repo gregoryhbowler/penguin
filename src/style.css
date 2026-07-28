@@ -224,3 +224,21 @@ html, body {
 @media (pointer: coarse) {
   #helpOpen { bottom: auto; top: 120px; right: 14px; }
 }
+
+/* ---------- underwater ---------- */
+/* A tint over the whole frame while the camera is below the surface, plus a
+   vignette so it reads as depth rather than a colour filter. */
+#underwater {
+  position: fixed; inset: 0; z-index: 5; pointer-events: none;
+  opacity: 0; transition: opacity .28s ease;
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(58, 122, 124, .18) 0%, rgba(14, 46, 58, .74) 100%),
+    linear-gradient(rgba(40, 104, 108, .34), rgba(19, 58, 70, .5));
+}
+#underwater.on { opacity: 1; }
+
+/* An explicit `display` beats the `hidden` attribute, so every element the game
+   toggles with `hidden` needs this or it never actually goes away. The prompt
+   pill was the visible casualty: an empty "E" badge parked on screen forever
+   whenever nothing was in reach. */
+[hidden] { display: none !important; }
