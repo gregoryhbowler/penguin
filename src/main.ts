@@ -66,7 +66,7 @@ async function boot() {
     }
     return false;
   };
-  const grass = new GrassField(quality.grass, 19, groundHeight, noGrassHere);
+  const grass = new GrassField(quality.grass, 40, groundHeight, noGrassHere);
   scene.add(grass.mesh);
 
   const controller = new CharacterController(grid, {
@@ -130,13 +130,18 @@ async function boot() {
     camDist = THREE.MathUtils.clamp(camDist + input.consumeZoom(), 9, 46);
 
     // ---- movement, relative to the camera ----
+    // The camera sits at (sin yaw, ., cos yaw) * dist from Pip and looks back at
+    // him, so "into the screen" is the NEGATIVE of that offset. Forgetting the
+    // sign here is what made W walk backwards and A/D mirror.
     const mv = input.move.clone();
     if (mv.lengthSq() > 1) mv.normalize();
     const sin = Math.sin(camYaw);
     const cos = Math.cos(camYaw);
+    const fwd = new THREE.Vector2(-sin, -cos);   // away from the camera
+    const right = new THREE.Vector2(cos, -sin);  // fwd x up
     const dir = override?.dir ?? new THREE.Vector2(
-      mv.x * cos - mv.y * sin,
-      mv.x * sin + mv.y * cos,
+      right.x * mv.x + fwd.x * mv.y,
+      right.y * mv.x + fwd.y * mv.y,
     );
 
     controller.update(dt, {

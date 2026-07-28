@@ -56,6 +56,30 @@ export function tickWind(mat: THREE.Material, t: number) {
   if (shader) shader.uniforms.uTime.value = t;
 }
 
+/**
+ * Fake leaf translucency. Real foliage glows where light passes *through* it,
+ * and that rim of lit green against shadow is most of what makes Breath of the
+ * Wild's trees look alive. Cheap approximation: brighten toward the silhouette
+ * edge, tinted by the leaf's own colour.
+ */
+export function addLeafTranslucency(mat: THREE.MeshStandardMaterial, amount = 0.5) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev?.call(mat, shader, renderer);
+    shader.uniforms.uSSS = { value: amount };
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uSSS;')
+      .replace(
+        '#include <dithering_fragment>',
+        `#include <dithering_fragment>
+         // vViewPosition points from the fragment to the camera in view space.
+         float facing = abs(dot(normalize(normal), normalize(vViewPosition)));
+         float rim = pow(1.0 - facing, 2.2);
+         gl_FragColor.rgb += diffuseColor.rgb * rim * uSSS;`,
+      );
+  };
+}
+
 /** A lumpy, hand-carved-looking canopy blob. */
 function canopyGeometry(): THREE.BufferGeometry {
   const geo = new THREE.IcosahedronGeometry(0.5, 2);
@@ -102,6 +126,7 @@ export function buildFoliage(parts: PartData[]): FoliageResult {
       }),
       { strength: 0.42, speed: 0.85 },
     );
+    addLeafTranslucency(mat, 0.55);
     materials.push(mat);
 
     const geo = withWhiteColors(canopyGeometry());
@@ -163,6 +188,7 @@ export function buildFoliage(parts: PartData[]): FoliageResult {
       }),
       { strength: 0.22, speed: 1.5 },
     );
+    addLeafTranslucency(mat, 0.4);
     materials.push(mat);
 
     // A frond: a tapered blade, not a flat rectangle.
@@ -209,13 +235,21 @@ export function buildFoliage(parts: PartData[]): FoliageResult {
 }
 
 /**
- * Scattered grass tufts around the player. Purely decorative, re-scattered as
- * you walk so only a small ring is ever alive.
+ * Ground cover around the player.
+ *
+ * Scattering into a disc centred on Pip made the whole field slide with him —
+ * a very visible travelling circle of grass. Instead the world is diced into
+ * fixed tiles, each seeded from its own coordinates, and only the tiles near
+ * Pip are populated. Tufts therefore stay put: you walk past them, and the
+ * boundary lives far enough out that haze hides it.
  */
 export class GrassField {
   mesh: THREE.InstancedMesh;
   material: THREE.MeshStandardMaterial;
-  private last = new THREE.Vector3(1e9, 0, 1e9);
+  private tile: number;
+  private tilesAcross: number;
+  private perTile: number;
+  private lastTile = { x: 1e9, z: 1e9 };
 
   constructor(
     private count: number,
@@ -223,6 +257,10 @@ export class GrassField {
     private groundY: (x: number, z: number) => number,
     private blocked?: (x: number, z: number, y: number) => boolean,
   ) {
+    // Tiles roughly 14 studs across gives a 7x7 neighbourhood at radius ~49.
+    this.tile = 14;
+    this.tilesAcross = Math.max(3, Math.ceil((radius * 2) / this.tile) | 1);
+    this.perTile = Math.max(1, Math.floor(count / (this.tilesAcross ** 2)));
     // A tuft of three crossed blades reads far softer than a single spike.
     const blades: THREE.BufferGeometry[] = [];
     for (let b = 0; b < 3; b++) {
@@ -279,9 +317,12 @@ export class GrassField {
   }
 
   update(center: THREE.Vector3) {
-    // Only rescatter after meaningful movement — this is not per-frame work.
-    if (center.distanceTo(this.last) < this.radius * 0.28) return;
-    this.last.copy(center);
+    const tx = Math.round(center.x / this.tile);
+    const tz = Math.round(center.z / this.tile);
+    // Nothing to do until Pip crosses into a new tile.
+    if (tx === this.lastTile.x && tz === this.lastTile.z) return;
+    this.lastTile.x = tx;
+    this.lastTile.z = tz;
 
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
@@ -289,30 +330,54 @@ export class GrassField {
     const pos = new THREE.Vector3();
     const scale = new THREE.Vector3();
     const color = new THREE.Color();
-    const green = new THREE.Color('#6b8850');
+    const green = new THREE.Color('#5f7d43');
+    const half = (this.tilesAcross - 1) / 2;
+    // Positions hash off absolute tile coords, so a tuft occupies the same
+    // patch of world every time that tile comes back into range.
+    const hash = (a: number, b: number, salt: number) => {
+      const s = Math.sin(a * 127.1 + b * 311.7 + salt * 74.7) * 43758.5453;
+      return s - Math.floor(s);
+    };
 
-    for (let i = 0; i < this.count; i++) {
-      // Deterministic scatter keyed to the tile so tufts don't crawl.
-      const a = (i * 2.399963) % (Math.PI * 2);
-      const r = Math.sqrt((i + 0.5) / this.count) * this.radius;
-      const x = center.x + Math.cos(a) * r + Math.sin(i * 7.13) * 2.2;
-      const z = center.z + Math.sin(a) * r + Math.cos(i * 5.71) * 2.2;
-      const y = this.groundY(x, z);
-      if (this.blocked?.(x, z, y)) {
-        // Something solid covers this spot — a path, a deck, a floor.
-        m.makeScale(0, 0, 0);
-        this.mesh.setMatrixAt(i, m);
-        continue;
+    let i = 0;
+    for (let ox = -half; ox <= half; ox++) {
+      for (let oz = -half; oz <= half; oz++) {
+        const cellX = tx + ox;
+        const cellZ = tz + oz;
+        for (let k = 0; k < this.perTile && i < this.count; k++, i++) {
+          const x = (cellX + hash(cellX, cellZ, k) - 0.5) * this.tile;
+          const z = (cellZ + hash(cellZ, cellX, k + 91) - 0.5) * this.tile;
+          const y = this.groundY(x, z);
+
+          // Fade the outermost ring out rather than ending on a hard circle.
+          const d = Math.hypot(x - center.x, z - center.z);
+          const fade = 1 - THREE.MathUtils.smoothstep(d, this.radius * 0.72, this.radius);
+
+          if (fade <= 0.02 || this.blocked?.(x, z, y)) {
+            m.makeScale(0, 0, 0); // a path, a deck, a floor — or out of range
+            this.mesh.setMatrixAt(i, m);
+            continue;
+          }
+          pos.set(x, y, z);
+          e.set(0, hash(cellX, cellZ, k + 17) * Math.PI, (hash(cellX, cellZ, k + 43) - 0.5) * 0.24);
+          q.setFromEuler(e);
+          const h = (0.42 + hash(cellX, cellZ, k + 5) * 0.4) * fade;
+          scale.set(1, h, 1);
+          m.compose(pos, q, scale);
+          this.mesh.setMatrixAt(i, m);
+          color.copy(green).offsetHSL(
+            (hash(cellX, cellZ, k + 3) - 0.5) * 0.04,
+            0,
+            (hash(cellX, cellZ, k + 7) - 0.5) * 0.09,
+          );
+          this.mesh.setColorAt(i, color);
+        }
       }
-      pos.set(x, y, z);
-      e.set(0, (i * 1.7) % Math.PI, Math.sin(i * 3.1) * 0.12);
-      q.setFromEuler(e);
-      const h = 0.42 + Math.abs(Math.sin(i * 9.7)) * 0.4;
-      scale.set(1, h, 1);
-      m.compose(pos, q, scale);
+    }
+    // Park any leftovers out of sight.
+    for (; i < this.count; i++) {
+      m.makeScale(0, 0, 0);
       this.mesh.setMatrixAt(i, m);
-      color.copy(green).offsetHSL(Math.sin(i * 2.3) * 0.02, 0, Math.sin(i * 4.1) * 0.045);
-      this.mesh.setColorAt(i, color);
     }
     this.mesh.instanceMatrix.needsUpdate = true;
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;

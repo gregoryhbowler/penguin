@@ -16,10 +16,10 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 const GradeShader = {
   uniforms: {
     tDiffuse: { value: null as THREE.Texture | null },
-    uVignette: { value: 0.9 },
-    uSaturation: { value: 0.92 },
-    uLift: { value: new THREE.Color('#151f23') },
-    uGain: { value: new THREE.Color('#eef3ee') },
+    uVignette: { value: 0.55 },
+    uSaturation: { value: 1.04 },
+    uLift: { value: new THREE.Color('#0d1518') },
+    uGain: { value: new THREE.Color('#fbfdf8') },
     uWarmHighlights: { value: 0.16 },
   },
   vertexShader: /* glsl */ `
@@ -78,7 +78,7 @@ export function detectQuality(): Quality {
     ao: !weak,                        // GTAO is the first thing to go on tablets
     pixelRatio: Math.min(devicePixelRatio, weak ? 1.5 : 2),
     shadowSize: weak ? 1024 : 2048,
-    grass: weak ? 1400 : 5000,
+    grass: weak ? 5000 : 14000,
   };
 }
 

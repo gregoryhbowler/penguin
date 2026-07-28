@@ -109,7 +109,9 @@ export class CharacterController {
     this.vel.z = THREE.MathUtils.damp(this.vel.z, want.z, accel, dt);
 
     if (input.dir.lengthSq() > 0.001) {
-      this.facing = Math.atan2(input.dir.x, input.dir.y);
+      // Pip is modelled facing -Z (beak toward -Z), so a yaw of 0 already points
+      // him "north". Rotating by θ sends -Z to (-sin θ, -cos θ).
+      this.facing = Math.atan2(-input.dir.x, -input.dir.y);
     }
 
     // ---- jump + gravity ----

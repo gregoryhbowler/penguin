@@ -50,10 +50,10 @@ void main() {
   // Cloud sheets, denser toward the horizon, drifting slowly.
   if (h > 0.0) {
     vec2 uv = dir.xz / max(h + 0.18, 0.08);
-    float c = fbm(uv * 0.55 + vec2(time * 0.006, time * 0.0035));
-    c = smoothstep(0.42, 0.95, c);
+    float c = fbm(uv * 0.42 + vec2(time * 0.006, time * 0.0035));
+    c = smoothstep(0.36, 0.78, c);
     float fade = smoothstep(0.0, 0.35, h) * (1.0 - smoothstep(0.75, 1.0, h) * 0.35);
-    col = mix(col, mix(vec3(0.80, 0.85, 0.86), sunColor, 0.25), c * fade * 0.75);
+    col = mix(col, mix(vec3(0.97, 0.98, 0.99), sunColor, 0.3), c * fade * 0.92);
   }
 
   gl_FragColor = vec4(col, 1.0);
@@ -67,11 +67,11 @@ export interface SkyHandle {
 
 export function createSky(renderer: THREE.WebGLRenderer, sunDir: THREE.Vector3): SkyHandle {
   const uniforms = {
-    top: { value: new THREE.Color('#4d7f92') },
-    horizon: { value: new THREE.Color('#9fb9b5') },
-    bottom: { value: new THREE.Color('#667b74') },
+    top: { value: new THREE.Color('#5fa3c9') },
+    horizon: { value: new THREE.Color('#cfe0dd') },
+    bottom: { value: new THREE.Color('#8fa79c') },
     sunDir: { value: sunDir.clone().normalize() },
-    sunColor: { value: new THREE.Color('#f2ece0') },
+    sunColor: { value: new THREE.Color('#fff6e2') },
     time: { value: 0 },
   };
 

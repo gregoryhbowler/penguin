@@ -9,13 +9,15 @@ import { partMatrix } from '../engine/world';
  * bright enough to bloom.
  */
 export const PALETTE = {
-  fog: new THREE.Color('#7d9c9d'),
-  sun: new THREE.Color('#f2ece0'),
-  skyLight: new THREE.Color('#88a8b4'),
-  bounce: new THREE.Color('#4a6247'),
-  ground: new THREE.Color('#546b41'),
-  groundDark: new THREE.Color('#3b4f33'),
-  groundDry: new THREE.Color('#6d7a4e'),
+  // Distance haze is the signature Breath-of-the-Wild move: far geometry
+  // washes toward a pale sky tint, which reads as scale and open air.
+  fog: new THREE.Color('#a8c4c6'),
+  sun: new THREE.Color('#fff4dc'),
+  skyLight: new THREE.Color('#a9cfe0'),
+  bounce: new THREE.Color('#5c7a52'),
+  ground: new THREE.Color('#6a8a4c'),
+  groundDark: new THREE.Color('#4a6339'),
+  groundDry: new THREE.Color('#8a9558'),
 };
 
 interface MatSpec { roughness: number; metalness: number; emissive?: boolean }
@@ -61,7 +63,7 @@ export function createRenderer(canvas: HTMLCanvasElement, pixelRatio: number): T
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.18;
   return renderer;
 }
 
@@ -71,13 +73,13 @@ export function createScene(shadowSize: number): {
   sunDir: THREE.Vector3;
 } {
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(PALETTE.fog.clone(), 0.0026);
+  scene.fog = new THREE.FogExp2(PALETTE.fog.clone(), 0.0016);
 
-  const hemi = new THREE.HemisphereLight(PALETTE.skyLight, PALETTE.bounce, 1.0);
+  const hemi = new THREE.HemisphereLight(PALETTE.skyLight, PALETTE.bounce, 1.45);
   scene.add(hemi);
 
   const sunDir = new THREE.Vector3(-0.55, 0.68, 0.48).normalize();
-  const sun = new THREE.DirectionalLight(PALETTE.sun, 2.1);
+  const sun = new THREE.DirectionalLight(PALETTE.sun, 2.6);
   sun.position.copy(sunDir).multiplyScalar(160);
   sun.castShadow = true;
   sun.shadow.mapSize.set(shadowSize, shadowSize);
@@ -94,7 +96,7 @@ export function createScene(shadowSize: number): {
   scene.add(sun.target);
 
   // A cool fill from the opposite side stops shadowed faces going to mud.
-  const fill = new THREE.DirectionalLight(new THREE.Color('#93b3c4'), 0.32);
+  const fill = new THREE.DirectionalLight(new THREE.Color('#a8cbe0'), 0.45);
   fill.position.set(80, 40, -70);
   scene.add(fill);
 
