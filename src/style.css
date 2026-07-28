@@ -159,27 +159,6 @@ html, body {
   color: var(--ink); cursor: pointer;
 }
 
-/* ---------- touch ---------- */
-#touch { position: fixed; inset: 0; z-index: 15; pointer-events: none; }
-#stick {
-  position: absolute; left: 5vw; bottom: 8vh; width: 130px; height: 130px;
-  border-radius: 50%; background: rgba(243, 233, 210, .16);
-  border: 2px solid rgba(243, 233, 210, .38); pointer-events: auto;
-}
-#stick i {
-  position: absolute; left: 50%; top: 50%; width: 54px; height: 54px;
-  margin: -27px 0 0 -27px; border-radius: 50%;
-  background: rgba(243, 233, 210, .6);
-}
-#touch button {
-  position: absolute; right: 6vw; width: 74px; height: 74px; border-radius: 50%;
-  background: rgba(243, 233, 210, .82); border: 2px solid var(--wood);
-  color: var(--ink); font-size: 22px; font-weight: 700;
-  pointer-events: auto; cursor: pointer;
-}
-#btnJump { bottom: 20vh; }
-#btnAct  { bottom: 8vh; }
-
 @media (max-width: 820px) {
   #taskCard { width: 220px; font-size: 13px; }
   #pipCard { width: 168px; }
@@ -231,13 +210,13 @@ html, body {
   background: rgba(243, 233, 210, .62);
   box-shadow: 0 2px 10px rgba(0, 0, 0, .25);
 }
-#touch button {
+#touch > button {
   position: absolute; border-radius: 50%;
   background: rgba(243, 233, 210, .8); border: 3px solid var(--wood);
   color: var(--ink); font-weight: 700; pointer-events: auto;
   box-shadow: 0 4px 14px rgba(0, 0, 0, .3);
 }
-#touch button:active { background: rgba(217, 118, 61, .85); color: #fff; }
+#touch > button:active { background: rgba(217, 118, 61, .85); color: #fff; }
 #btnJump  { right: 5vw;  bottom: 12vh; width: 88px; height: 88px; font-size: 30px; }
 #btnAct   { right: 25vw; bottom: 9vh;  width: 72px; height: 72px; font-size: 24px; }
 #btnSlide { right: 6vw;  bottom: 30vh; width: 62px; height: 62px; font-size: 24px; }
