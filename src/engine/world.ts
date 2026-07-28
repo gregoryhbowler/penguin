@@ -34,6 +34,14 @@ export interface Collider {
   inv: THREE.Matrix3;
   rot: THREE.Matrix3;
   axisAligned: boolean;
+  /** Wedges are ramps: their top face slopes from -Z (low) to +Z (high). */
+  wedge: boolean;
+  /**
+   * Half-height of the part's WORLD-space bounding box. For a rotated part this
+   * is not half.y — the bandstand deck is a cylinder lying on its side, and
+   * reading its local half-height as the world top made it a 10-stud wall.
+   */
+  worldHalfY: number;
   name: string;
 }
 
@@ -73,8 +81,48 @@ export function makeCollider(p: PartData): Collider {
     rot,
     inv,
     axisAligned: isIdentityRot(r),
+    wedge: p.class === 'WedgePart',
+    // row 1 of the rotation matrix projects a local extent onto world Y
+    worldHalfY:
+      Math.abs(r[3]) * (p.size[0] / 2) +
+      Math.abs(r[4]) * (p.size[1] / 2) +
+      Math.abs(r[5]) * (p.size[2] / 2),
     name: p.name,
   };
+}
+
+/**
+ * Height of a collider's walkable top surface at a world XZ, or null if that
+ * point is outside its footprint. Wedges slope linearly from their -Z edge up
+ * to their +Z edge, which is what makes every ramp in the world climbable
+ * instead of a solid block you have to jump onto.
+ */
+const _local = new THREE.Vector3();
+const _surf = new THREE.Vector3();
+export function colliderTopAt(
+  c: Collider,
+  x: number,
+  z: number,
+  /**
+   * When true, points outside the footprint are clamped onto its nearest edge
+   * instead of returning null. The collision resolver needs this: the player's
+   * centre is still a body-radius short of a ramp when the resolver first sees
+   * it, and falling back to the box top there turned every ramp into a wall.
+   */
+  clampToEdge = false,
+): number | null {
+  _local.set(x - c.center.x, 0, z - c.center.z).applyMatrix3(c.inv);
+  if (!clampToEdge) {
+    if (Math.abs(_local.x) > c.half.x + 0.05) return null;
+    if (Math.abs(_local.z) > c.half.z + 0.05) return null;
+  }
+  if (!c.wedge) return c.center.y + c.worldHalfY;
+  const lz = THREE.MathUtils.clamp(_local.z, -c.half.z, c.half.z);
+  const lx = THREE.MathUtils.clamp(_local.x, -c.half.x, c.half.x);
+  const t = (lz + c.half.z) / (2 * c.half.z);
+  const localY = -c.half.y + t * 2 * c.half.y;
+  _surf.set(lx, localY, lz).applyMatrix3(c.rot);
+  return c.center.y + _surf.y;
 }
 
 /**

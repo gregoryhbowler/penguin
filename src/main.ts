@@ -6,7 +6,6 @@ import {
 } from './art/scene';
 import { createSky } from './art/sky';
 import { buildFoliage, GrassField, tickWind } from './art/foliage';
-import { createWater } from './art/water';
 import { createPostFX, detectQuality } from './art/postfx';
 import { Pip } from './game/pip';
 import { Interactables } from './game/interact';
@@ -36,10 +35,9 @@ async function boot() {
   scene.add(foliage.group);
   scene.add(buildWorldMeshes(parts, foliage.consumed));
 
-  // The river runs roughly north-south through the waterfront; ponds are small
-  // enough that one generous sheet at the waterline covers everything.
-  const water = createWater(new THREE.Vector2(470, 60), new THREE.Vector2(260, 900), 1.2);
-  scene.add(water.mesh);
+  // NOTE: no water yet. A flat sheet under a flat y=2 ground plane just bleeds
+  // through the grass and road as shimmer. Real water needs the ground carved
+  // into a river channel first — see createWater(), which is ready for it.
 
   // ---------------- collision ----------------
   const grid = new ColliderGrid();
@@ -174,10 +172,9 @@ async function boot() {
     sun.target.position.copy(controller.pos);
     sky.mesh.position.copy(camera.position);
     sky.update(elapsed);
-    water.update(elapsed);
     grass.update(controller.pos);
     for (const m of foliage.materials) tickWind(m, elapsed);
-    tickWind(grass.material, elapsed);
+    tickWind(grass.material, elapsed, controller.pos);
 
     // ---- region banner, straight off the Zone tags ----
     for (const z of zones) {

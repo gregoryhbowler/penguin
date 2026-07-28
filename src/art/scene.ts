@@ -103,13 +103,20 @@ export function createScene(shadowSize: number): {
   return { scene, sun, sunDir };
 }
 
-/** Rolling ground. Roblox terrain is a voxel blob that doesn't export, so the
- *  walkable surface is authored here around the world's known y=2 datum. */
+/**
+ * The walkable ground.
+ *
+ * Roblox terrain is a voxel blob that doesn't survive export, so this is
+ * authored — but it must stay FLAT at the world's y=2 datum, because every one
+ * of the 3,748 parts was placed against flat terrain. An earlier version rolled
+ * by +-2.6 studs and buried 113 collidable parts outright while slicing through
+ * 361 more: logs and curbs sunk out of sight became invisible walls you had to
+ * jump. Keep the variation well under a step height.
+ */
 export function groundHeight(x: number, z: number): number {
-  const a = Math.sin(x * 0.0121) * Math.cos(z * 0.0138) * 0.9;
-  const b = Math.sin((x + z) * 0.0295) * 0.35;
-  const c = Math.sin(x * 0.0043 + 1.7) * Math.sin(z * 0.0051) * 1.4;
-  return 2 + a + b + c;
+  const a = Math.sin(x * 0.0121) * Math.cos(z * 0.0138) * 0.05;
+  const b = Math.sin((x + z) * 0.0295) * 0.03;
+  return 2 + a + b;
 }
 
 export function createGround(): THREE.Mesh {

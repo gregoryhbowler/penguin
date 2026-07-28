@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Collider, ColliderGrid } from './world';
+import { colliderTopAt, type Collider, type ColliderGrid } from './world';
 
 /**
  * Kinematic character controller for Pip.
@@ -41,18 +41,14 @@ export class CharacterController {
     private cfg: ControllerConfig,
   ) {}
 
-  /** Highest solid surface under a point, including static parts. */
+  /** Highest solid surface under a point, including static parts and ramps. */
   surfaceY(x: number, z: number, from: number): number {
     let best = this.cfg.groundY(x, z);
     const probe = new THREE.Vector3(x, from, z);
     const list = this.grid.query(probe, this.cfg.radius + 2, this.scratch);
-    const local = new THREE.Vector3();
     for (const c of list) {
-      local.set(x - c.center.x, 0, z - c.center.z).applyMatrix3(c.inv);
-      // Only stand on a box if the point is within its XZ footprint.
-      if (Math.abs(local.x) > c.half.x + 0.05) continue;
-      if (Math.abs(local.z) > c.half.z + 0.05) continue;
-      const top = c.center.y + c.half.y;
+      const top = colliderTopAt(c, x, z);
+      if (top === null) continue;
       if (top <= from + 0.35 && top > best) best = top;
     }
     return best;
@@ -66,11 +62,15 @@ export class CharacterController {
     const local = new THREE.Vector3();
 
     for (const c of list) {
-      const top = c.center.y + c.half.y;
-      const bottom = c.center.y - c.half.y;
-      // Ignore anything we can simply step onto, or that's above our head.
+      const bottom = c.center.y - c.worldHalfY;
+      if (bottom >= head) continue; // clears our head entirely
+
+      // A ramp is only a wall where its slope has risen out of reach. Sampling
+      // the surface height at our own footprint is what lets Pip walk up every
+      // wedge in the world instead of bouncing off its bounding box.
+      const surface = colliderTopAt(c, next.x, next.z, true);
+      const top = surface ?? c.center.y + c.worldHalfY;
       if (top <= feet + this.cfg.stepHeight) continue;
-      if (bottom >= head) continue;
 
       local.set(next.x - c.center.x, 0, next.z - c.center.z).applyMatrix3(c.inv);
       const dx = c.half.x + r - Math.abs(local.x);
@@ -132,9 +132,15 @@ export class CharacterController {
     // ---- ground ----
     const ground = this.surfaceY(next.x, next.z, this.pos.y + this.cfg.stepHeight);
     if (next.y <= ground) {
-      // Step up onto ledges within reach rather than being stopped by them.
+      // Step up onto ledges and ramps within reach rather than being stopped.
       next.y = ground;
       if (this.vel.y < 0) this.vel.y = 0;
+      this.onGround = true;
+    } else if (this.onGround && this.vel.y <= 0 && next.y - ground <= this.cfg.stepHeight) {
+      // Walking *down* a step or ramp: stay glued rather than launching into a
+      // fall on every tread, which is what made stairs feel like a landing test.
+      next.y = ground;
+      this.vel.y = 0;
       this.onGround = true;
     } else {
       this.onGround = false;

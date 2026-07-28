@@ -13,14 +13,17 @@ import { withWhiteColors } from './scene';
 /** Injects wind sway into any MeshStandardMaterial, driven by world position. */
 export function makeWindMaterial(
   base: THREE.MeshStandardMaterial,
-  opts: { strength?: number; speed?: number; anchorY?: number } = {},
+  opts: { strength?: number; speed?: number; fade?: [number, number] } = {},
 ): THREE.MeshStandardMaterial {
   const strength = opts.strength ?? 0.35;
   const speed = opts.speed ?? 1.0;
+  const fade = opts.fade;
   base.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = { value: 0 };
     shader.uniforms.uWind = { value: strength };
     shader.uniforms.uSpeed = { value: speed };
+    shader.uniforms.uPlayer = { value: new THREE.Vector3() };
+    shader.uniforms.uFade = { value: new THREE.Vector2(fade?.[0] ?? 1e9, fade?.[1] ?? 1e9) };
     (base as any).userData.shader = shader;
 
     shader.vertexShader = shader.vertexShader
@@ -29,7 +32,9 @@ export function makeWindMaterial(
         `#include <common>
          uniform float uTime;
          uniform float uWind;
-         uniform float uSpeed;`,
+         uniform float uSpeed;
+         uniform vec3 uPlayer;
+         uniform vec2 uFade;`,
       )
       .replace(
         '#include <begin_vertex>',
@@ -45,15 +50,21 @@ export function makeWindMaterial(
          float t = uTime * uSpeed;
          transformed.x += sin(t * 1.3 + phase) * uWind * sway;
          transformed.z += cos(t * 0.9 + phase * 1.7) * uWind * sway * 0.7;
-         transformed.y += sin(t * 2.1 + phase) * uWind * sway * 0.12;`,
+         transformed.y += sin(t * 2.1 + phase) * uWind * sway * 0.12;
+         // Continuous distance fade. Doing this in the shader (rather than when
+         // tiles are rebuilt) is what stops whole rings appearing at once.
+         float dPlayer = distance(instOrigin.xz, uPlayer.xz);
+         transformed *= 1.0 - smoothstep(uFade.x, uFade.y, dPlayer);`,
       );
   };
   return base;
 }
 
-export function tickWind(mat: THREE.Material, t: number) {
+export function tickWind(mat: THREE.Material, t: number, player?: THREE.Vector3) {
   const shader = (mat as any).userData?.shader;
-  if (shader) shader.uniforms.uTime.value = t;
+  if (!shader) return;
+  shader.uniforms.uTime.value = t;
+  if (player && shader.uniforms.uPlayer) shader.uniforms.uPlayer.value.copy(player);
 }
 
 /**
@@ -253,7 +264,7 @@ export class GrassField {
 
   constructor(
     private count: number,
-    private radius: number,
+    public readonly radius: number,
     private groundY: (x: number, z: number) => number,
     private blocked?: (x: number, z: number, y: number) => boolean,
   ) {
@@ -296,7 +307,7 @@ export class GrassField {
         metalness: 0,
         side: THREE.DoubleSide,
       }),
-      { strength: 0.14, speed: 2.1 },
+      { strength: 0.14, speed: 2.1, fade: [radius * 0.55, radius * 0.95] },
     );
     // Double-sided blades flip their normal on back faces, which turned half
     // the field black. Turf doesn't need real shading — pin the lighting
@@ -349,19 +360,15 @@ export class GrassField {
           const z = (cellZ + hash(cellZ, cellX, k + 91) - 0.5) * this.tile;
           const y = this.groundY(x, z);
 
-          // Fade the outermost ring out rather than ending on a hard circle.
-          const d = Math.hypot(x - center.x, z - center.z);
-          const fade = 1 - THREE.MathUtils.smoothstep(d, this.radius * 0.72, this.radius);
-
-          if (fade <= 0.02 || this.blocked?.(x, z, y)) {
-            m.makeScale(0, 0, 0); // a path, a deck, a floor — or out of range
+          if (this.blocked?.(x, z, y)) {
+            m.makeScale(0, 0, 0); // a path, a deck or a floor already covers this
             this.mesh.setMatrixAt(i, m);
             continue;
           }
           pos.set(x, y, z);
           e.set(0, hash(cellX, cellZ, k + 17) * Math.PI, (hash(cellX, cellZ, k + 43) - 0.5) * 0.24);
           q.setFromEuler(e);
-          const h = (0.42 + hash(cellX, cellZ, k + 5) * 0.4) * fade;
+          const h = 0.42 + hash(cellX, cellZ, k + 5) * 0.4;
           scale.set(1, h, 1);
           m.compose(pos, q, scale);
           this.mesh.setMatrixAt(i, m);
