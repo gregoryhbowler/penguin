@@ -1,0 +1,186 @@
+/* Ember Grove UI — warm parchment field-journal over a cool world.
+   Palette law: warm ink/ember tones live only in the UI and on fire;
+   the world itself stays moss, stone and overcast teal. */
+:root {
+  --parchment: #f3e9d2;
+  --parchment-dark: #e2d5ba;
+  --ink: #3b3228;
+  --ink-soft: #6e6050;
+  --ember: #d9763d;
+  --wood: #8a6748;
+  --good: #6ea05a;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #29434c;
+  font-family: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+#view { display: block; width: 100%; height: 100%; touch-action: none; }
+
+/* ---------- loading ---------- */
+#loading {
+  position: fixed; inset: 0; display: grid; place-content: center;
+  gap: 18px; justify-items: center;
+  background: linear-gradient(#2f4f57, #22343a);
+  color: var(--parchment); z-index: 50; transition: opacity .8s;
+}
+#loading.gone { opacity: 0; pointer-events: none; }
+#loading p { margin: 0; letter-spacing: .04em; opacity: .85; }
+.lantern {
+  width: 26px; height: 34px; border-radius: 6px;
+  background: radial-gradient(circle at 50% 40%, #ffd79a, #d9763d 70%);
+  box-shadow: 0 0 34px 10px rgba(217, 118, 61, .45);
+  animation: sway 2.6s ease-in-out infinite;
+}
+@keyframes sway {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50%      { transform: translateY(-7px) rotate(4deg); }
+}
+
+/* ---------- HUD ---------- */
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+
+.card {
+  position: absolute;
+  background: rgba(243, 233, 210, .93);
+  border: 2px solid var(--wood);
+  border-radius: 14px;
+  padding: 10px 12px;
+  color: var(--ink);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .22);
+}
+
+#pipCard { top: 14px; left: 14px; width: 210px; }
+#pipCard .name { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+.bar {
+  position: relative; height: 17px; margin-top: 5px; border-radius: 9px;
+  background: var(--parchment-dark);
+  border: 1px solid rgba(138, 103, 72, .6); overflow: hidden;
+}
+.bar i {
+  position: absolute; inset: 0; width: 100%;
+  background: var(--c); transform-origin: left;
+  transition: transform .3s ease;
+}
+.bar span {
+  position: absolute; inset: 0; display: grid; place-content: center;
+  font-size: 11px; font-weight: 600;
+}
+
+.chip { top: 14px; right: 14px; display: flex; gap: 6px; font-weight: 700; }
+.chip b { color: var(--ember); }
+
+#taskCard {
+  top: 66px; right: 14px; width: 290px;
+  border-color: var(--ember);
+  transition: transform .25s ease, opacity .25s ease;
+}
+#taskCard.collapsed { transform: translateX(calc(100% - 34px)); opacity: .82; }
+#taskCard.hidden-for-dialogue { transform: translateX(120%); opacity: 0; }
+#taskToggle {
+  position: absolute; top: 6px; right: 8px; width: 22px; height: 22px;
+  border: 0; border-radius: 6px; background: transparent;
+  color: var(--ink-soft); font-size: 17px; line-height: 1;
+  cursor: pointer; pointer-events: auto;
+}
+#taskCard .kicker { font-size: 10px; letter-spacing: .09em; color: var(--ink-soft); }
+#taskCard .title { font-size: 17px; font-weight: 700; margin: 3px 0; }
+#taskCard .body { font-size: 13px; line-height: 1.4; }
+#taskCard .hint { font-size: 12px; color: var(--ink-soft); font-style: italic; margin-top: 5px; }
+#taskCard.collapsed .body,
+#taskCard.collapsed .hint,
+#taskCard.collapsed .kicker { display: none; }
+#taskCard.collapsed .title {
+  writing-mode: vertical-rl; font-size: 12px; margin: 16px 0 0 2px;
+}
+
+#banner {
+  position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
+  font-size: 30px; font-weight: 700; color: var(--parchment);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, .55);
+  opacity: 0; transition: opacity .7s; white-space: nowrap;
+}
+#banner.show { opacity: 1; }
+
+#toasts {
+  position: absolute; top: 78px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 6px; align-items: center;
+  width: min(420px, 88vw);
+}
+.toast {
+  background: rgba(243, 233, 210, .95);
+  border: 2px solid var(--wood); border-left-width: 6px;
+  border-radius: 10px; padding: 8px 12px; font-size: 14px; color: var(--ink);
+  animation: pop .25s ease-out;
+}
+.toast.good { border-left-color: var(--good); }
+.toast.hint { border-left-color: #6e8fbe; }
+.toast.story { border-left-color: var(--ember); }
+@keyframes pop { from { transform: translateY(-8px); opacity: 0; } }
+
+#promptHint {
+  position: absolute; left: 50%; bottom: 22%; transform: translateX(-50%);
+  background: rgba(243, 233, 210, .95); border: 2px solid var(--wood);
+  border-radius: 12px; padding: 7px 14px; font-size: 14px; color: var(--ink);
+  display: flex; gap: 8px; align-items: center;
+}
+#promptHint b {
+  background: var(--ink); color: var(--parchment);
+  border-radius: 5px; padding: 1px 7px; font-size: 12px;
+}
+
+/* ---------- dialogue ---------- */
+#dialogue {
+  position: fixed; left: 50%; bottom: 8%; transform: translateX(-50%);
+  width: min(560px, 92vw);
+  background: var(--parchment); border: 3px solid var(--wood);
+  border-radius: 16px; padding: 18px 18px 14px; z-index: 20; color: var(--ink);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, .35);
+}
+#dialogue .who {
+  position: absolute; top: -14px; left: 18px;
+  background: var(--ember); color: #fff; font-weight: 700; font-size: 14px;
+  border-radius: 8px; padding: 4px 12px;
+}
+#dialogue .line { margin: 6px 0 12px; font-size: 15.5px; line-height: 1.5; min-height: 3em; }
+#dialogue .next {
+  float: right; background: var(--parchment-dark); border: 2px solid var(--wood);
+  border-radius: 9px; padding: 6px 16px; font: inherit; font-weight: 700;
+  color: var(--ink); cursor: pointer;
+}
+
+/* ---------- touch ---------- */
+#touch { position: fixed; inset: 0; z-index: 15; pointer-events: none; }
+#stick {
+  position: absolute; left: 5vw; bottom: 8vh; width: 130px; height: 130px;
+  border-radius: 50%; background: rgba(243, 233, 210, .16);
+  border: 2px solid rgba(243, 233, 210, .38); pointer-events: auto;
+}
+#stick i {
+  position: absolute; left: 50%; top: 50%; width: 54px; height: 54px;
+  margin: -27px 0 0 -27px; border-radius: 50%;
+  background: rgba(243, 233, 210, .6);
+}
+#touch button {
+  position: absolute; right: 6vw; width: 74px; height: 74px; border-radius: 50%;
+  background: rgba(243, 233, 210, .82); border: 2px solid var(--wood);
+  color: var(--ink); font-size: 22px; font-weight: 700;
+  pointer-events: auto; cursor: pointer;
+}
+#btnJump { bottom: 20vh; }
+#btnAct  { bottom: 8vh; }
+
+@media (max-width: 820px) {
+  #taskCard { width: 220px; font-size: 13px; }
+  #pipCard { width: 168px; }
+}

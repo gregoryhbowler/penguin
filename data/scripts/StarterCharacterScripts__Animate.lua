@@ -1,0 +1,2 @@
+-- Intentionally empty. This overrides Roblox's default Animate script, which expects
+-- a standard R6/R15 rig. Penguin animation is procedural: see StarterPlayerScripts.PenguinMotion.

@@ -1,0 +1,124 @@
+/** All HUD/dialogue chrome. Plain DOM — far easier than canvas, and it keeps
+ *  the parchment field-journal look the Roblox version established. */
+export class UI {
+  private sparks = 0;
+  private energy = 100;
+  private health = 100;
+  private dialogueLines: string[] = [];
+  private dialogueIndex = 0;
+  private bannerTimer = 0;
+
+  private el = {
+    loading: document.getElementById('loading')!,
+    hud: document.getElementById('hud')!,
+    health: document.getElementById('healthFill')!,
+    energy: document.getElementById('energyFill')!,
+    sparks: document.getElementById('sparkCount')!,
+    taskCard: document.getElementById('taskCard')!,
+    taskToggle: document.getElementById('taskToggle')!,
+    taskTitle: document.getElementById('taskTitle')!,
+    taskBody: document.getElementById('taskBody')!,
+    taskHint: document.getElementById('taskHint')!,
+    banner: document.getElementById('banner')!,
+    toasts: document.getElementById('toasts')!,
+    prompt: document.getElementById('promptHint')!,
+    dialogue: document.getElementById('dialogue')!,
+  };
+
+  constructor() {
+    // The task card blocking dialogue was a real complaint in the Roblox build;
+    // here it both collapses on demand and yields automatically.
+    this.el.taskToggle.addEventListener('click', () => {
+      this.el.taskCard.classList.toggle('collapsed');
+      this.el.taskToggle.textContent =
+        this.el.taskCard.classList.contains('collapsed') ? '+' : '–';
+    });
+    this.el.dialogue.querySelector('.next')!.addEventListener('click', () => this.advance());
+    addEventListener('keydown', (e) => {
+      if (this.el.dialogue.hidden) return;
+      if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyE') {
+        e.preventDefault();
+        this.advance();
+      }
+    });
+  }
+
+  ready() {
+    this.el.loading.classList.add('gone');
+    this.el.hud.hidden = false;
+    setTimeout(() => (this.el.loading.style.display = 'none'), 900);
+    this.setTask('A Strange Morning', 'Look around the campsite and pick up the old Bucket.',
+      'The bucket sits by the fallen tent, glinting in the light.');
+  }
+
+  setTask(title: string, body: string, hint?: string) {
+    this.el.taskTitle.textContent = title;
+    this.el.taskBody.textContent = body;
+    this.el.taskHint.textContent = hint ? `Hint: ${hint}` : '';
+  }
+
+  showRegion(name: string) {
+    this.el.banner.textContent = `—  ${name}  —`;
+    this.el.banner.classList.add('show');
+    this.bannerTimer = 3.4;
+  }
+
+  toast(text: string, kind: 'good' | 'hint' | 'story' = 'hint') {
+    const div = document.createElement('div');
+    div.className = `toast ${kind}`;
+    div.textContent = text;
+    this.el.toasts.appendChild(div);
+    setTimeout(() => div.remove(), kind === 'story' ? 6000 : 4000);
+  }
+
+  showPrompt(text: string) {
+    this.el.prompt.hidden = false;
+    this.el.prompt.querySelector('span')!.textContent = text;
+  }
+
+  hidePrompt() {
+    this.el.prompt.hidden = true;
+  }
+
+  dialogue(name: string, lines: string[]) {
+    this.dialogueLines = lines;
+    this.dialogueIndex = -1;
+    this.el.dialogue.querySelector('.who')!.textContent = name;
+    this.el.dialogue.hidden = false;
+    this.el.taskCard.classList.add('hidden-for-dialogue');
+    this.advance();
+  }
+
+  private advance() {
+    this.dialogueIndex++;
+    if (this.dialogueIndex >= this.dialogueLines.length) {
+      this.el.dialogue.hidden = true;
+      this.el.taskCard.classList.remove('hidden-for-dialogue');
+      return;
+    }
+    this.el.dialogue.querySelector('.line')!.textContent = this.dialogueLines[this.dialogueIndex];
+    (this.el.dialogue.querySelector('.next') as HTMLElement).textContent =
+      this.dialogueIndex === this.dialogueLines.length - 1 ? 'Done ✔' : 'Continue ▸';
+  }
+
+  addSparks(n: number) {
+    this.sparks += n;
+    this.el.sparks.textContent = String(this.sparks);
+    this.toast(`+${n} Sparks`, 'good');
+  }
+
+  addEnergy(n: number) {
+    this.energy = Math.min(100, this.energy + n);
+  }
+
+  tick(dt: number) {
+    // Gentle hunger, exactly as in GameConfig: never lethal, just a nudge home.
+    this.energy = Math.max(0, this.energy - dt * 0.045);
+    this.el.energy.style.transform = `scaleX(${this.energy / 100})`;
+    this.el.health.style.transform = `scaleX(${this.health / 100})`;
+    if (this.bannerTimer > 0) {
+      this.bannerTimer -= dt;
+      if (this.bannerTimer <= 0) this.el.banner.classList.remove('show');
+    }
+  }
+}

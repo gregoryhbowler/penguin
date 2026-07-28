@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.DS_Store
+
+# Moodboard reference only — third-party images, not ours to redistribute
+Ember Inspo/
+
+# Raw Roblox exports (large); world.json in public/data is the shipped copy
+*.rbxl
+*.rbxlx

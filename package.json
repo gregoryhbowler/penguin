@@ -1,0 +1,25 @@
+{
+  "name": "ember-grove",
+  "version": "1.0.0",
+  "description": "A family-friendly, third-person, cooperative action-adventure for Roblox. You are **Pip**, a firehouse penguin separated from home by a strange storm. Waddle, swim, and belly-slide through an enchanted urban forest \u2014 extinguish fires, rescue people and animals, and help troubled spirits remember who they are, all the way back to the firehouse across the Great Bridge.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "sax": "^1.6.1",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.185.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.5"
+  },
+  "private": true,
+  "type": "module"
+}

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#2f4f57" />
+  <title>Ember Grove: A Penguin's Way Home</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <div id="loading">
+    <div class="lantern"></div>
+    <p>Waking the grove…</p>
+  </div>
+
+  <div id="hud" hidden>
+    <div class="card" id="pipCard">
+      <div class="name">Pip</div>
+      <div class="bar"><i id="healthFill" style="--c:#c25b4e"></i><span>Health</span></div>
+      <div class="bar"><i id="energyFill" style="--c:#e0a93e"></i><span>Energy</span></div>
+    </div>
+    <div class="card chip" id="sparkChip"><b>✦</b> <span id="sparkCount">0</span></div>
+    <div class="card" id="taskCard">
+      <button id="taskToggle" title="Collapse">–</button>
+      <div class="kicker" id="taskKicker">CURRENT TASK</div>
+      <div class="title" id="taskTitle">Waking up…</div>
+      <div class="body" id="taskBody"></div>
+      <div class="hint" id="taskHint"></div>
+    </div>
+    <div id="banner"></div>
+    <div id="toasts"></div>
+    <div id="promptHint" hidden><b>E</b> <span></span></div>
+  </div>
+
+  <div id="dialogue" hidden>
+    <div class="who"></div>
+    <p class="line"></p>
+    <button class="next">Continue ▸</button>
+  </div>
+
+  <div id="touch" hidden>
+    <div id="stick"><i></i></div>
+    <button id="btnJump">▲</button>
+    <button id="btnAct">E</button>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

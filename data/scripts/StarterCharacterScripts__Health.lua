@@ -1,0 +1,2 @@
+-- Intentionally empty. Overrides Roblox's default Health regen script.
+-- Health and Energy are managed server-side by PlayerStateService.
