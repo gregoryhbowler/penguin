@@ -65,3 +65,23 @@ and ready to switch on as their systems are ported.
 The original Roblox build's documentation is kept in `ROBLOX_README.md`,
 `HANDOFF.md` and `QA_REPORT.md` — they remain the reference for quest chains,
 dialogue and world design.
+
+## Art pipeline
+
+`src/art/` is where the "console-like" push lives:
+
+- **sky.ts** — shader dome with drifting cloud banks; a PMREM environment map
+  is baked from it so PBR surfaces have something to reflect.
+- **foliage.ts** — replaces the Roblox `Leaves` boxes with irregular canopy
+  blobs (three per box, jittered and colour-varied), turns `FernFan` parts into
+  curved fronds, and scatters a grass field around the player. All of it sways
+  on a shared wind shader.
+- **postfx.ts** — GTAO contact shadows, bloom gated to a high threshold, and a
+  colour grade that cools the frame and permits warmth only in highlights.
+  `detectQuality()` drops AO, pixel ratio and grass density on tablets.
+- **water.ts** — stylised river: layered swell, fresnel depth, sparkle, foam.
+
+Two non-obvious things worth remembering: `InstancedMesh.setColorAt` renders
+black unless the geometry carries a base `color` attribute *and* the material
+has `vertexColors: true`; and vertical grass blades read black under an
+overhead sun until their shading normal is pinned to world-up.
